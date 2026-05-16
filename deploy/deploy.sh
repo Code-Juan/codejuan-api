@@ -1,7 +1,8 @@
 #!/bin/bash
 #deploy codejuan-api to VPS
-#run from your local machine:
+#run from your local machine (from apps/api):
 #  bash deploy/deploy.sh your-vps-ip
+#  example: RSYNC_RSH='ssh -i ~/.ssh/id_ed25519_codejuan' bash deploy/deploy.sh 147.182.215.31
 
 set -e
 

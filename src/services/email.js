@@ -9,7 +9,7 @@ async function sendContactNotification({ to, from, name, email, phone, service, 
   const toEmail = to || env.notificationEmail;
 
   const { data, error } = await resend.emails.send({
-    from: `${clientName || 'CodeJuan'} Contact Form <${fromEmail}>`,
+    from: `${clientName || 'codeJuan'} Contact Form <${fromEmail}>`,
     to: [toEmail],
     replyTo: email,
     subject: `New Contact Form Submission from ${name}`,
@@ -23,7 +23,7 @@ async function sendContactNotification({ to, from, name, email, phone, service, 
       <p>${escapeHtml(message)}</p>
       <hr>
       <p style="color: #666; font-size: 12px;">
-        Sent via ${clientName || 'CodeJuan'} contact form
+        Sent via ${clientName || 'codeJuan'} contact form
       </p>
     `,
   });
@@ -41,7 +41,7 @@ async function sendAutoReply({ to, from, name, clientName }) {
   const fromEmail = from || env.defaultFromEmail;
 
   const { data, error } = await resend.emails.send({
-    from: `${clientName || 'CodeJuan'} <${fromEmail}>`,
+    from: `${clientName || 'codeJuan'} <${fromEmail}>`,
     to: [to],
     subject: `Thanks for reaching out, ${name}!`,
     html: `
@@ -50,13 +50,80 @@ async function sendAutoReply({ to, from, name, clientName }) {
       <p>If your request is urgent, feel free to reply to this email directly.</p>
       <br>
       <p>Best regards,</p>
-      <p>Juan Contreras<br>${clientName || 'CodeJuan Web Services'}</p>
+      <p>Juan Contreras<br>${clientName || 'codeJuan Web Services'}</p>
     `,
   });
 
   if (error) {
     console.error('auto-reply error:', error);
     //don't throw -- auto-reply failure shouldn't break the form submission
+  }
+
+  return data;
+}
+
+function verifyInboundWebhook(payload, headers) {
+  return resend.webhooks.verify({
+    payload,
+    headers,
+    webhookSecret: env.resendWebhookSecret,
+  });
+}
+
+function shouldForwardInbound(recipients) {
+  const toList = (recipients || []).map((addr) => addr.toLowerCase());
+  return toList.some((addr) =>
+    env.inboundForwardAddresses.some((target) => addr.includes(target))
+  );
+}
+
+//forward received email to personal inbox (Resend inbound webhook)
+async function forwardReceivedEmail({ emailId, from, to, subject }) {
+  const { data: email, error: emailError } = await resend.emails.receiving.get(emailId);
+  if (emailError) {
+    throw new Error(`failed to fetch email: ${emailError.message}`);
+  }
+
+  const { data: attachmentsData, error: attachmentsError } =
+    await resend.emails.receiving.attachments.list({ emailId });
+  if (attachmentsError) {
+    throw new Error(`failed to fetch attachments: ${attachmentsError.message}`);
+  }
+
+  let attachments;
+  const attachmentList = attachmentsData?.data || [];
+  if (attachmentList.length > 0) {
+    attachments = [];
+    for (const attachment of attachmentList) {
+      const response = await fetch(attachment.download_url);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      attachments.push({
+        filename: attachment.filename,
+        content: buffer.toString('base64'),
+      });
+    }
+  }
+
+  const toDisplay = (to || []).join(', ');
+  const bodyHtml = email.html
+    || (email.text ? `<pre style="white-space:pre-wrap">${escapeHtml(email.text)}</pre>` : '<p>(empty body)</p>');
+
+  const { data, error } = await resend.emails.send({
+    from: `codeJuan Mail <${env.defaultFromEmail}>`,
+    to: [env.forwardToEmail],
+    replyTo: from,
+    subject: `[codejuan.com] ${subject}`,
+    html: `
+      <p><strong>From:</strong> ${escapeHtml(from)}</p>
+      <p><strong>To:</strong> ${escapeHtml(toDisplay)}</p>
+      <hr>
+      ${bodyHtml}
+    `,
+    attachments,
+  });
+
+  if (error) {
+    throw new Error(`forward send failed: ${error.message}`);
   }
 
   return data;
@@ -72,4 +139,10 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-module.exports = { sendContactNotification, sendAutoReply };
+module.exports = {
+  sendContactNotification,
+  sendAutoReply,
+  verifyInboundWebhook,
+  shouldForwardInbound,
+  forwardReceivedEmail,
+};

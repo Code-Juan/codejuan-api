@@ -9,9 +9,9 @@ const { contactRules, handleValidationErrors } = require('../middleware/validate
 
 //POST /api/contact -- default contact form (your own sites)
 //POST /api/contact/:clientId -- per-client contact form
-router.post('/:clientId?', contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
+router.post('/', contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
   try {
-    const clientId = req.params.clientId || 'codejuan';
+    const clientId = 'codejuan';
     const client = getClient(clientId);
     const { name, email, phone, service, message } = req.body;
 
@@ -36,14 +36,54 @@ router.post('/:clientId?', contactLimiter, contactRules, handleValidationErrors,
       phone,
       service,
       message,
-      clientName: client?.name || 'CodeJuan',
+      clientName: client?.name || 'codeJuan',
     });
 
     //send auto-reply to the submitter
     sendAutoReply({
       to: email,
       name,
-      clientName: client?.name || 'CodeJuan Web Services',
+      clientName: client?.name || 'codeJuan Web Services',
+    }).catch(err => console.error('auto-reply failed:', err.message));
+
+    res.status(200).json({ success: true, message: 'Message sent successfully.' });
+  } catch (err) {
+    console.error('contact form error:', err);
+    res.status(500).json({ error: 'Failed to send message. Please try again.' });
+  }
+});
+
+router.post('/:clientId', contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
+  try {
+    const clientId = req.params.clientId;
+    const client = getClient(clientId);
+    const { name, email, phone, service, message } = req.body;
+
+    try {
+      await pool.query(
+        `INSERT INTO submissions (client_id, name, email, phone, service, message, page_url, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [clientId, name, email, phone || null, service || null, message, req.get('referer') || null, req.ip]
+      );
+    } catch (dbErr) {
+      console.error('db insert error (non-fatal):', dbErr.message);
+    }
+
+    const notificationEmail = client?.notificationEmail || env.notificationEmail;
+    await sendContactNotification({
+      to: notificationEmail,
+      name,
+      email,
+      phone,
+      service,
+      message,
+      clientName: client?.name || 'codeJuan',
+    });
+
+    sendAutoReply({
+      to: email,
+      name,
+      clientName: client?.name || 'codeJuan Web Services',
     }).catch(err => console.error('auto-reply failed:', err.message));
 
     res.status(200).json({ success: true, message: 'Message sent successfully.' });

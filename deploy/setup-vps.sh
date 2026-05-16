@@ -5,7 +5,7 @@
 
 set -e
 
-echo "=== CodeJuan API - VPS Setup ==="
+echo "=== codeJuan API - VPS Setup ==="
 
 #1. system updates
 echo "[1/8] updating system..."

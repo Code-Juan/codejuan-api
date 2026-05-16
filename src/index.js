@@ -23,8 +23,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature'],
 }));
 
-//stripe webhook needs raw body -- must be before express.json()
+//webhooks need raw body -- must be before express.json()
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/email/webhook', express.raw({ type: 'application/json' }));
 
 //parse JSON and URL-encoded bodies
 app.use(express.json({ limit: '1mb' }));
@@ -35,6 +36,7 @@ app.use('/api/', apiLimiter);
 
 //routes
 app.use('/api/contact', require('./routes/contact'));
+app.use('/api/email', require('./routes/email'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/health', require('./routes/health'));

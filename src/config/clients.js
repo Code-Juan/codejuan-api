@@ -4,12 +4,12 @@
 const clients = {
   //your own sites
   codejuan: {
-    name: 'CodeJuan Portfolio',
+    name: 'codeJuan Portfolio',
     domain: 'codejuan.com',
     notificationEmail: null, //uses default from env
   },
   services: {
-    name: 'CodeJuan Services',
+    name: 'codeJuan Services',
     domain: 'services.codejuan.com',
     notificationEmail: null, //uses default from env
   },
