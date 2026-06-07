@@ -3,14 +3,60 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { createCheckoutSession, constructWebhookEvent } = require('../services/stripe');
 const { paymentLimiter } = require('../middleware/rateLimiter');
+const { getCatalogItem } = require('../config/catalog');
+const { getClient } = require('../config/clients');
+const env = require('../config/env');
+
+function requirePaymentsEnabled(req, res, next) {
+  if (!env.paymentsEnabled) {
+    return res.status(503).json({ error: 'Payments are not available.' });
+  }
+
+  next();
+}
+
+//redirect urls must point back at a site we control
+function isAllowedRedirectUrl(value) {
+  try {
+    return env.allowedOrigins.includes(new URL(value).origin);
+  } catch {
+    return false;
+  }
+}
 
 //POST /api/payments/checkout -- create a Stripe checkout session
-router.post('/checkout', paymentLimiter, async (req, res) => {
+//items reference the server-side catalog by id; prices are never taken from the request
+router.post('/checkout', requirePaymentsEnabled, paymentLimiter, async (req, res) => {
   try {
-    const { clientId, lineItems, successUrl, cancelUrl, customerEmail, metadata } = req.body;
+    const { clientId, items, successUrl, cancelUrl, customerEmail, metadata } = req.body;
 
-    if (!clientId || !lineItems || !successUrl || !cancelUrl) {
-      return res.status(400).json({ error: 'Missing required fields: clientId, lineItems, successUrl, cancelUrl' });
+    if (!clientId || !Array.isArray(items) || items.length === 0 || !successUrl || !cancelUrl) {
+      return res.status(400).json({ error: 'Missing required fields: clientId, items, successUrl, cancelUrl' });
+    }
+
+    if (!getClient(clientId)) {
+      return res.status(400).json({ error: 'Unknown client.' });
+    }
+
+    if (!isAllowedRedirectUrl(successUrl) || !isAllowedRedirectUrl(cancelUrl)) {
+      return res.status(400).json({ error: 'Redirect URLs must use an allowed origin.' });
+    }
+
+    if (items.length > 20) {
+      return res.status(400).json({ error: 'Too many items.' });
+    }
+
+    const lineItems = [];
+    for (const item of items) {
+      const catalogItem = getCatalogItem(item && item.itemId);
+      if (!catalogItem) {
+        return res.status(400).json({ error: 'Unknown item.' });
+      }
+
+      const quantity = Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 10
+        ? item.quantity
+        : 1;
+      lineItems.push({ name: catalogItem.name, amount: catalogItem.amount, quantity });
     }
 
     const session = await createCheckoutSession({

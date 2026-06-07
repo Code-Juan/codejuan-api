@@ -17,9 +17,21 @@ function requireContactFormEnabled(req, res, next) {
   next();
 }
 
+//honeypot -- bots fill hidden fields; pretend success and drop without storing or emailing
+function isHoneypotTriggered(req, res) {
+  if (typeof req.body.company_website === 'string' && req.body.company_website.length > 0) {
+    res.status(200).json({ success: true, message: 'Message sent successfully.' });
+    return true;
+  }
+
+  return false;
+}
+
 //POST /api/contact -- default contact form (your own sites)
 //POST /api/contact/:clientId -- per-client contact form
 router.post('/', requireContactFormEnabled, contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
+  if (isHoneypotTriggered(req, res)) return;
+
   try {
     const clientId = 'codejuan';
     const client = getClient(clientId);
@@ -64,6 +76,8 @@ router.post('/', requireContactFormEnabled, contactLimiter, contactRules, handle
 });
 
 router.post('/:clientId', requireContactFormEnabled, contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
+  if (isHoneypotTriggered(req, res)) return;
+
   try {
     const clientId = req.params.clientId;
     const client = getClient(clientId);
@@ -103,8 +117,17 @@ router.post('/:clientId', requireContactFormEnabled, contactLimiter, contactRule
   }
 });
 
+//admin gate -- submissions contain PII; respond 404 so the endpoint is not advertised
+function requireAdminKey(req, res, next) {
+  if (!env.adminApiKey || req.get('x-admin-key') !== env.adminApiKey) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  next();
+}
+
 //GET /api/submissions/:clientId -- view submissions for a client (future dashboard)
-router.get('/submissions/:clientId', async (req, res) => {
+router.get('/submissions/:clientId', requireAdminKey, async (req, res) => {
   try {
     const { clientId } = req.params;
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);

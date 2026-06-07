@@ -27,6 +27,10 @@ module.exports = {
   //stripe
   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+  paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true',
+
+  //admin -- unset disables admin-only endpoints (e.g. reading submissions)
+  adminApiKey: process.env.ADMIN_API_KEY || null,
 
   //database
   databaseUrl: process.env.DATABASE_URL,
