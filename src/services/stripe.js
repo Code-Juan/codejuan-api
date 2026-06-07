@@ -15,9 +15,30 @@ async function createCheckoutSession({ clientId, lineItems, successUrl, cancelUr
   const s = getStripe();
   if (!s) throw new Error('stripe not configured');
 
+  const stripeLineItems = lineItems.map((item) => {
+    if (item.price_data || item.price) {
+      return {
+        quantity: item.quantity || 1,
+        ...(item.price ? { price: item.price } : { price_data: item.price_data }),
+      };
+    }
+
+    return {
+      quantity: item.quantity || 1,
+      price_data: {
+        currency: item.currency || 'usd',
+        product_data: {
+          name: item.name,
+          ...(item.description ? { description: item.description } : {}),
+        },
+        unit_amount: item.amount,
+      },
+    };
+  });
+
   const session = await s.checkout.sessions.create({
     payment_method_types: ['card'],
-    line_items: lineItems,
+    line_items: stripeLineItems,
     mode: 'payment',
     success_url: successUrl,
     cancel_url: cancelUrl,

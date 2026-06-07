@@ -11,6 +11,7 @@ module.exports = {
   port: parseInt(process.env.PORT, 10) || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
   allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
+  contactFormEnabled: process.env.CONTACT_FORM_ENABLED === 'true',
 
   //resend
   resendApiKey: process.env.RESEND_API_KEY,

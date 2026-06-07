@@ -6,6 +6,9 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
+//trust nginx so rate limiting uses the real client IP from X-Forwarded-For
+app.set('trust proxy', 1);
+
 //security headers
 app.use(helmet());
 

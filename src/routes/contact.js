@@ -7,9 +7,19 @@ const env = require('../config/env');
 const { contactLimiter } = require('../middleware/rateLimiter');
 const { contactRules, handleValidationErrors } = require('../middleware/validate');
 
+function requireContactFormEnabled(req, res, next) {
+  if (!env.contactFormEnabled) {
+    return res.status(503).json({
+      error: 'Contact form is temporarily unavailable. Please email contact@codejuan.com directly.',
+    });
+  }
+
+  next();
+}
+
 //POST /api/contact -- default contact form (your own sites)
 //POST /api/contact/:clientId -- per-client contact form
-router.post('/', contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
+router.post('/', requireContactFormEnabled, contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
   try {
     const clientId = 'codejuan';
     const client = getClient(clientId);
@@ -53,7 +63,7 @@ router.post('/', contactLimiter, contactRules, handleValidationErrors, async (re
   }
 });
 
-router.post('/:clientId', contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
+router.post('/:clientId', requireContactFormEnabled, contactLimiter, contactRules, handleValidationErrors, async (req, res) => {
   try {
     const clientId = req.params.clientId;
     const client = getClient(clientId);
